@@ -333,23 +333,35 @@
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
-        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
-        import { getFirestore, doc, collection, onSnapshot, updateDoc, setDoc, getDocs } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { getAnalytics } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-analytics.js";
+        import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, collection, onSnapshot, updateDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // Global State & Config
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'admin-panel-dev-id';
-        const firebaseConfig = typeof __firebase_config !== 'undefined' ? JSON.parse(__firebase_config) : {
-            projectId: "demo-project", // Fallback for pure frontend testing if needed, but assuming valid config
+        // Firebase project configuration
+        const firebaseConfig = {
+            apiKey: "AIzaSyDWY5V4lCsbNMRgAZy5sRgfmhk6__3ifp4",
+            authDomain: "cashmoney-b443d.firebaseapp.com",
+            projectId: "cashmoney-b443d",
+            storageBucket: "cashmoney-b443d.firebasestorage.app",
+            messagingSenderId: "486748729220",
+            appId: "1:486748729220:web:c0e82b71be90be782b77d1",
+            measurementId: "G-92YG72YRRJ"
         };
-        
-        let app, db, auth;
+
+        let app;
+        let db;
+        let auth;
         try {
             app = initializeApp(firebaseConfig);
+            try {
+                getAnalytics(app);
+            } catch (analyticsError) {
+                console.warn("Firebase Analytics is unavailable in this environment:", analyticsError);
+            }
             db = getFirestore(app);
             auth = getAuth(app);
         } catch (e) {
             console.error("Firebase init failed", e);
-            showToast("Database connection error", 'error');
         }
 
         // App State
@@ -404,8 +416,8 @@
             document.getElementById(`view-${tabId}`).classList.remove('hidden');
             
             // Re-render specific views if needed based on state
-            if(tabId === 'loans') renderLoans();
-            if(tabId === 'users') renderUsers();
+            if(tabId === 'loans') updateLoansUI();
+            if(tabId === 'users') updateUsersUI();
         };
 
         window.showToast = (message, type = 'success') => {
@@ -486,6 +498,11 @@
 
         // Authentication Guard
         const authenticateAndInit = () => {
+            if (!auth || !db) {
+                showToast("Firebase could not be initialized. Check the browser console.", 'error');
+                return;
+            }
+
             onAuthStateChanged(auth, async (user) => {
                 if (user) {
                     console.log("Admin authenticated");
@@ -501,28 +518,24 @@
                 }
             });
 
-            if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                signInWithCustomToken(auth, __initial_auth_token).catch(err => {
-                    console.warn("Custom token failed, falling back to anon:", err);
-                    signInAnonymously(auth);
-                });
-            } else {
-                signInAnonymously(auth);
-            }
+            signInAnonymously(auth).catch(error => {
+                console.error("Anonymous authentication failed:", error);
+                showToast("Authentication failed. Enable Anonymous sign-in in Firebase Authentication.", 'error');
+                const loader = document.getElementById('loading-overlay');
+                if (loader) loader.remove();
+            });
         };
 
         const setupRealtimeListeners = () => {
-            const basePath = ['artifacts', appId, 'public', 'data'];
-            
             // Users Listener
-            onSnapshot(collection(db, ...basePath, 'users'), (snap) => {
+            onSnapshot(collection(db, 'users'), (snap) => {
                 state.users = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 updateUsersUI();
                 updateDashboardStats();
             }, (error) => console.error("Users sync error:", error));
 
             // Loans Listener
-            onSnapshot(collection(db, ...basePath, 'loans'), (snap) => {
+            onSnapshot(collection(db, 'loans'), (snap) => {
                 state.loans = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 // Sort by date desc
                 state.loans.sort((a,b) => new Date(b.ts || 0) - new Date(a.ts || 0));
@@ -531,19 +544,19 @@
             }, (error) => console.error("Loans sync error:", error));
 
             // Contacts Listener
-            onSnapshot(collection(db, ...basePath, 'contacts'), (snap) => {
+            onSnapshot(collection(db, 'contacts'), (snap) => {
                 state.contacts = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 updateContactsUI();
             }, (error) => console.error("Contacts sync error:", error));
 
             // Gallery Listener
-            onSnapshot(collection(db, ...basePath, 'gallery'), (snap) => {
+            onSnapshot(collection(db, 'gallery'), (snap) => {
                 state.gallery = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 updateGalleryUI();
             }, (error) => console.error("Gallery sync error:", error));
 
             // SMS Listener
-            onSnapshot(collection(db, ...basePath, 'sms'), (snap) => {
+            onSnapshot(collection(db, 'sms'), (snap) => {
                 state.sms = snap.docs.map(doc => ({ id: doc.id, ...doc.data() }));
                 updateSmsUI();
             }, (error) => console.error("SMS sync error:", error));
@@ -734,7 +747,7 @@
 
             window.openModal(title, msg, btnText, btnColor, async () => {
                 try {
-                    const loanRef = doc(db, 'artifacts', appId, 'public', 'data', 'loans', loanId);
+                    const loanRef = doc(db, 'loans', loanId);
                     await updateDoc(loanRef, { status: action === 'approve' ? 'approved' : 'rejected' });
                     
                     showToast(`Loan successfully ${action}d for ${userName}.`, 'success');
